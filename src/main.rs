@@ -12,7 +12,7 @@ enum Opcode {
     CloseLoop(usize),
 }
 
-fn optimaze(program: Vec<char>) -> Vec<Opcode> {
+fn optimize(program: Vec<char>) -> Vec<Opcode> {
     let mut opcodes: Vec<Opcode> = vec![];
     let mut stack: Vec<usize> = vec![];
     for opcode in program {
@@ -84,6 +84,49 @@ fn optimaze(program: Vec<char>) -> Vec<Opcode> {
     opcodes
 }
 
+fn compile(program: Vec<char>) {
+    let opcodes = optimize(program);
+    let mut file = String::new();
+
+    file += "fn main(){\n";
+    file += "
+        let mut ram: [u8; 30000] = [0; 30000];
+        let mut data_pointer = 0 as usize;
+    ";
+
+    for op in opcodes {
+        match op {
+            Opcode::Right(count) => {
+                file += &format!("data_pointer += {};\n", count);
+            }
+            Opcode::Left(count) => {
+                file += &format!("data_pointer -= {};\n", count);
+            }
+            Opcode::Plus(count) => {
+                file += &format!("ram[data_pointer] += {};\n", count);
+            }
+            Opcode::Minus(count) => {
+                file += &format!("ram[data_pointer] -= {};\n", count);
+            }
+            Opcode::Out => {
+                file += "print!(\"{}\", ram[data_pointer] as char);\n";
+            }
+            Opcode::Input => {
+                unimplemented!(",");
+            }
+            Opcode::OpenLoop(_) => {
+                file += "while ram[data_pointer] != 0 {\n";
+            }
+            Opcode::CloseLoop(_) => {
+                file += "}\n";
+            }
+        }
+    }
+
+    file += "}";
+    std::fs::write("optimized.rs", file);
+}
+
 fn run(opcodes: Vec<Opcode>) {
     let mut ram: [u8; 30000] = [0; 30000];
     let mut data_pointer = 0 as usize;
@@ -138,8 +181,10 @@ fn main() {
 
     let program: Vec<char> = std::fs::read_to_string(path).unwrap().chars().collect();
 
+    // compile(program);
+
     let timer = Instant::now();
-    let opcodes = optimaze(program);
+    let opcodes = optimize(program);
     println!("Optimization: {}/s", timer.elapsed().as_secs_f64());
 
     let timer = Instant::now();
