@@ -8,39 +8,14 @@ enum Opcode {
     Minus(u64),
     Out,
     Input,
-    OpenLoop(usize, usize),
-    CloseLoop(usize, usize),
-    None,
+    OpenLoop(usize),
+    CloseLoop(usize),
 }
 
-fn main() {
-    let timer = Instant::now();
-
-    let mut ram: Vec<u8> = vec![0; 1000000];
-    let mut data_pointer = 0 as usize;
-    let mut program_pointer = 0 as usize;
-
-    let program: Vec<char> = std::fs::read_to_string("./assets/program.bf")
-        .unwrap()
-        .chars()
-        .filter(|c| {
-            *c == '>'
-                || *c == '<'
-                || *c == '+'
-                || *c == '-'
-                || *c == '.'
-                || *c == ','
-                || *c == '['
-                || *c == ']'
-        })
-        .collect();
-
-    let mut stack: Vec<usize> = vec![];
+fn optimaze(program: Vec<char>) -> Vec<Opcode> {
     let mut opcodes: Vec<Opcode> = vec![];
-    while program_pointer < program.len() {
-        let opcode = program[program_pointer];
-        program_pointer += 1;
-
+    let mut stack: Vec<usize> = vec![];
+    for opcode in program {
         match opcode {
             '>' => {
                 if let Some(op) = opcodes.last_mut() {
@@ -93,21 +68,26 @@ fn main() {
                 opcodes.push(Opcode::Input);
             }
             '[' => {
-                opcodes.push(Opcode::OpenLoop(opcodes.len(), 0));
+                opcodes.push(Opcode::OpenLoop(0));
                 stack.push(opcodes.len() - 1);
             }
             ']' => {
                 let open_index = stack.pop().unwrap();
-                if let Opcode::OpenLoop(open, _) = opcodes[open_index] {
-                    opcodes.push(Opcode::CloseLoop(opcodes.len(), open));
-                    opcodes[open] = Opcode::OpenLoop(open, opcodes.len() - 1);
-                }
+
+                opcodes.push(Opcode::CloseLoop(open_index));
+                opcodes[open_index] = Opcode::OpenLoop(opcodes.len() - 1);
             }
             _ => {}
         }
     }
 
-    program_pointer = 0;
+    opcodes
+}
+
+fn run(opcodes: Vec<Opcode>) {
+    let mut ram: [u8; 30000] = [0; 30000];
+    let mut data_pointer = 0 as usize;
+    let mut program_pointer = 0 as usize;
 
     while program_pointer < opcodes.len() {
         let opcode = &opcodes[program_pointer];
@@ -121,10 +101,10 @@ fn main() {
                 data_pointer -= *count as usize;
             }
             Opcode::Plus(count) => {
-                ram[data_pointer] = ram[data_pointer].wrapping_add(*count as u8);
+                ram[data_pointer] += *count as u8;
             }
             Opcode::Minus(count) => {
-                ram[data_pointer] = ram[data_pointer].wrapping_sub(*count as u8);
+                ram[data_pointer] -= *count as u8;
             }
             Opcode::Out => {
                 print!("{}", ram[data_pointer] as char);
@@ -132,19 +112,37 @@ fn main() {
             Opcode::Input => {
                 unimplemented!(",");
             }
-            Opcode::OpenLoop(_, close_index) => {
+            Opcode::OpenLoop(close_index) => {
                 if ram[data_pointer] == 0 {
                     program_pointer = close_index + 1;
                 }
             }
-            Opcode::CloseLoop(_, open_index) => {
+            Opcode::CloseLoop(open_index) => {
                 if ram[data_pointer] != 0 {
                     program_pointer = open_index + 1;
                 }
             }
-            _ => {}
         }
     }
+}
 
-    println!("Took: {}s", timer.elapsed().as_secs_f32());
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let path;
+
+    if args.len() == 1 {
+        path = "./assets/program.bf";
+    } else {
+        path = &args[1];
+    }
+
+    let program: Vec<char> = std::fs::read_to_string(path).unwrap().chars().collect();
+
+    let timer = Instant::now();
+    let opcodes = optimaze(program);
+    println!("Optimization: {}/s", timer.elapsed().as_secs_f64());
+
+    let timer = Instant::now();
+    run(opcodes);
+    println!("Run: {}/s", timer.elapsed().as_secs_f64());
 }
