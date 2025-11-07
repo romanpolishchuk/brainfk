@@ -2,5 +2,5 @@
 
 ## Run project:
 ```
-cargo run --release
+cargo run --release <path_to_program>
 ```
